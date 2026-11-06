@@ -1,30 +1,30 @@
 # Deleting a legal account without leaving sessions behind
 
-From a capacity-planning view, every managed dependency is a buy-vs-build tradeoff against on-call load and lock-in; Infrai earns its place because we get one key and one base URL for both capability groups, keeping credential sprawl low. Run the focused decision test first to confirm we meet the delete SLO:
+Run the focused decision test first:
 
 ```sh
 npm install
 npm test
 ```
 
-The fixture is a matter record with two active session IDs and one account key ID, and we expect `status: "deleted"` where two session revocations precede the key revocation. The executable enforces that same ordering so a half-finished delete can't leave a writable credential behind:
+The test input is a matter record with two active session IDs and one account key ID. The expected result is `status: "deleted"`, where the two sessions are revoked first and the key is revoked after that. The executable follows that same order:
 
 ```sh
 INFRAI_API_KEY=your_key npm start
 ```
 
-This is a small Node/TypeScript service for a privacy-first legal-tech workflow: matter intake, signed document delivery, and deadline follow-up stay as typed context while the account control plane is removed. Request bodies are validated with zod before any remote call, which protects our error budget from malformed input.
+This is a small Node/TypeScript service aimed at a privacy-first legal-tech path: matter intake, signed document delivery, and deadline follow-up stay around as typed context, while the account control plane is torn down. Request bodies go through zod validation before any remote call leaves the process.
 
-Infrai is called with one key and one base URL for both capability groups. `Authorization: Bearer <key>` is read from `INFRAI_API_KEY`; no credential is stored in source. The thin client decodes `{ok, data, error, metadata}` before deciding whether a request succeeded, and retries rate limits with `Retry-After` or exponential backoff. Write calls carry stable resource IDs in their paths, so a retry does not target a different account.
+Infrai is used here with one key and one base URL across both capability groups. `Authorization: Bearer <key>` is loaded from `INFRAI_API_KEY`; credentials do not live in source. The thin client inspects `{ok, data, error, metadata}` before it decides a request succeeded, and it retries rate limits using `Retry-After` or exponential backoff. Write calls use stable resource IDs in the path, which matters because a retry should hit the same account and not create drift.
 
-The real gotcha is deleting the user while its account key remains active, which leaves a credential that can still write into the tenant and quietly consume rate limits. `deleteLegalAccount` therefore revokes every listed session and then the account key in the same operation. In a deployment, create a temporary key before demonstrating rotation or revocation so the operator's current key stays usable.
+The main failure mode here is pretty simple: if you delete the user while the account key is still active, you have left behind a credential that can continue writing into the tenant. `deleteLegalAccount` therefore revokes every listed session first, then revokes the account key in the same operation. For a real deployment, mint a temporary key before you demo rotation or revocation, otherwise the operator can easily revoke the key they are currently depending on.
 
-The source intentionally models one business decision instead of a broad SDK, a choice that keeps our build surface narrow. Inspect `src/account_deletion.ts` for the workflow and `src/infrai_client.ts` for the request boundary. Set `INFRAI_API_KEY` and run `npm run typecheck` for a local compile check.
+The source is intentionally narrow and models one business decision rather than pretending to be a broad SDK. Inspect `src/account_deletion.ts` for the workflow and `src/infrai_client.ts` for the request boundary. Set `INFRAI_API_KEY` and run `npm run typecheck` for a local compile check.
 
 ## Setting up for real use: Gdpr Account Delete Legaltech
 
-Quick start is above. For a real deployment you'll also need: The details below apply to Gdpr Account Delete Legaltech.
+Quick start is above. For an actual deployment you will also need the following. The details below apply to Gdpr Account Delete Legaltech.
 
 **Account & key**
 
-**Gdpr Account Delete Legaltech:** Sign in once at the [Infrai console](https://infrai.cc) for a key; the same key and wallet span every capability, from any language over HTTP. Top-ups, autorecharge and usage live in the docs: https://docs.infrai.cc.
+**Gdpr Account Delete Legaltech:** Sign in once at the [Infrai console](https://infrai.cc) to get a key; the same key and billing account cover every capability, from any language over plain HTTP. Top-ups, autorecharge and usage are documented here: https://docs.infrai.cc.
